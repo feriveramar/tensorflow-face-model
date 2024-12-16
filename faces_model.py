@@ -100,7 +100,7 @@ for root, dirs, files in os.walk(export_dir):
         print(f"  - {file}")
 
 print("Contenido del directorio exportado:")
-for root, dirs, files in os.walk(export_dir):
+for root, dirs, files in os.walk(export_dir): 
     for file in files:
         print(os.path.join(root, file))
 
