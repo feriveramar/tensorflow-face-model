@@ -7,21 +7,22 @@ import cv2
 import os
 
 TAMANO_IMG = 128
-mi_clases = ['sakura', 'agustin']  
+mi_clases = ['sakura', 'agustin']  # Las clases para clasificación
 
 def load_and_preprocess_image(file_path, label):
-    # El file_path ya es un string, por lo que no necesitas hacer cast
-    img = tf.io.read_file(file_path)
-    img = tf.image.decode_jpeg(img, channels=3)  # Decodificar la imagen
-    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])  # Redimensionar la imagen
-    img = img / 255.0  # Normalizar la imagen
+    # Cambiar tipo de dato para evitar el error
+    file_path = tf.cast(file_path, tf.string)
+    img = tf.io.read_file(file_path)  # Lee el archivo de la imagen
+    img = tf.image.decode_jpeg(img, channels=3)  # Decodifica la imagen
+    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])  # Redimensiona la imagen
+    img = img / 255.0  # Normaliza la imagen
     return img, label
 
+# Directorios y listas para almacenar imágenes y etiquetas
 image_paths = []
 labels = []
-base_dir = 'caras_fotos'  
+base_dir = 'caras_fotos'  # Ruta a las imágenes
 
-# Recoger las rutas de las imágenes y sus respectivas etiquetas
 for i, mi_clase in enumerate(mi_clases):
     class_dir = os.path.join(base_dir, mi_clase)
     if not os.path.exists(class_dir):
@@ -32,24 +33,24 @@ for i, mi_clase in enumerate(mi_clases):
             image_paths.append(full_path)
             labels.append(i)
 
-# Crear un dataset de TensorFlow
+# Crear dataset de TensorFlow a partir de las rutas de imágenes y etiquetas
 dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
 dataset = dataset.map(load_and_preprocess_image)
 
-# Convertir el dataset a listas de numpy arrays
+# Convertir los datos a arrays de numpy
 dataset_list = list(dataset)
 X = np.array([img.numpy() for img, _ in dataset_list])
 y = np.array([label.numpy() for _, label in dataset_list])
 
-# Convertir las etiquetas a formato categórico (one-hot encoding)
+# Convertir las etiquetas a formato one-hot
 y = tf.keras.utils.to_categorical(y, num_classes=len(mi_clases))
 
 print(X.shape, y.shape)
 
-# Dividir el dataset en entrenamiento y prueba
+# Dividir en conjunto de entrenamiento y prueba
 X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Generador de datos para aumentos
+# Configurar ImageDataGenerator para data augmentation
 datagen = ImageDataGenerator(
     rotation_range=30,
     width_shift_range=0.25,
@@ -58,7 +59,7 @@ datagen = ImageDataGenerator(
 )
 datagen.fit(X_train)
 
-# Crear el modelo de redes neuronales
+# Crear el modelo CNN para clasificación de imágenes
 modelo = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(TAMANO_IMG, TAMANO_IMG, 3)),
     tf.keras.layers.MaxPooling2D(2, 2),
@@ -70,12 +71,11 @@ modelo = tf.keras.models.Sequential([
     tf.keras.layers.Dense(len(mi_clases), activation='softmax')
 ])
 
-# Compilar el modelo
 modelo.compile(optimizer='adam',
                loss='categorical_crossentropy',
                metrics=['accuracy'])
 
-# Configurar el generador de datos para el entrenamiento
+# Generador para entrenamiento con data augmentation
 data_gen_entrenamiento = datagen.flow(X_train, Y_train, batch_size=32)
 
 # Entrenar el modelo
@@ -93,7 +93,7 @@ history = modelo.fit(
 test_loss, test_accuracy = modelo.evaluate(X_test, Y_test)
 print(f"Test accuracy: {test_accuracy * 100:.2f}%")
 
-# Guardar el modelo entrenado
+# Guardar el modelo
 export_dir = 'faces-model/1/'  
 os.makedirs(export_dir, exist_ok=True)  
 tf.saved_model.save(modelo, export_dir)
@@ -105,7 +105,7 @@ for root, dirs, files in os.walk(export_dir):
     for file in files:
         print(f"  - {file}")
 
-# Guardar los nombres de las clases en un archivo de texto
+# Guardar las clases en un archivo de texto
 with open(os.path.join(export_dir, 'class_names.txt'), 'w') as f:
     for cls in mi_clases:
         f.write(f"{cls}\n")
@@ -117,4 +117,4 @@ plt.title('Model Accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.legend()
-plt.show() 
+plt.show()
