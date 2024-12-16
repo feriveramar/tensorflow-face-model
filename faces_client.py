@@ -14,7 +14,7 @@ def prepare_image(image_path):
 
 image_path = 'sakura.jpg'  
 
-input_data = prepare_image(image_path)
+input_data = prepare_image(image_path) 
 
 data = {
     "signature_name": "serving_default",   
