@@ -1,77 +1,117 @@
-import gdown
-import os
+
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import cv2
+import os
 
-# Descargar imágenes desde Google Drive usando gdown
-def download_images_from_drive():
-    # Asegúrate de usar la URL de "export=download" de Google Drive
-    urls = [
-        'https://drive.google.com/uc?export=download&id=1gMyyhzlsBeTekEvnuzfT1QQaysFBbUqp'  # Enlace para una carpeta o archivo específico
-    ]
+TAMANO_IMG = 128
+mi_clases = ['sakura', 'agustin']  
 
-    for url in urls:
-        output = url.split('=')[-1]  # Extraer ID del archivo o nombre para guardarlo
-        gdown.download(url, output, quiet=False)
+def load_and_preprocess_image(file_path, label):
+    file_path = tf.cast(file_path, tf.string)
+    img = tf.io.read_file(file_path)
+    img = tf.image.decode_jpeg(img, channels=3)  
+    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])
+    img = img / 255.0 
+    return img, label
 
-# Llamamos a la función para descargar las imágenes
-download_images_from_drive()
+image_paths = []
+labels = []
+base_dir = 'caras_fotos'  
 
-# Asegúrate de que las imágenes se hayan descargado y estén disponibles
-dataset_directory = '/home/sakura/quinto/design'  # Cambia esta ruta según donde se guarden las imágenes
+for i, mi_clase in enumerate(mi_clases):
+    class_dir = os.path.join(base_dir, mi_clase)
+    if not os.path.exists(class_dir):
+        print(f"No se encontró la carpeta: {class_dir}")
+    else:
+        for img_path in os.listdir(class_dir):
+            full_path = os.path.join(class_dir, img_path)
+            image_paths.append(full_path)
+            labels.append(i)
 
-# Cargar el dataset
-image_size = (150, 150)
-batch_size = 32
+dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
+dataset = dataset.map(load_and_preprocess_image)
 
-# Aquí usamos ImageDataGenerator para cargar las imágenes de la carpeta descargada
-train_datagen = ImageDataGenerator(rescale=1./255)
-train_generator = train_datagen.flow_from_directory(
-    dataset_directory,
-    target_size=image_size,
-    batch_size=batch_size,
-    class_mode='binary'  # Cambiar si es más de dos clases
+dataset_list = list(dataset)
+X = np.array([img.numpy() for img, _ in dataset_list])
+y = np.array([label.numpy() for _, label in dataset_list])
+
+y = tf.keras.utils.to_categorical(y, num_classes=len(mi_clases))
+
+print(X.shape, y.shape)
+
+X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+datagen = ImageDataGenerator(
+    rotation_range=30,
+    width_shift_range=0.25,
+    height_shift_range=0.25,
+    zoom_range=[0.5, 1.5]
 )
+datagen.fit(X_train)
 
-# Dividir en conjunto de entrenamiento y prueba
-# Dataset: Imágenes de entrenamiento
-X_train, X_val, y_train, y_val = train_test_split(
-    train_generator, test_size=0.2, random_state=42
-)
-
-# Aquí crearías tu modelo (por ejemplo, usando una red neuronal de Keras o TensorFlow)
-model = tf.keras.Sequential([
-    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(150, 150, 3)),
+modelo = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(TAMANO_IMG, TAMANO_IMG, 3)),
     tf.keras.layers.MaxPooling2D(2, 2),
     tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
     tf.keras.layers.MaxPooling2D(2, 2),
+    tf.keras.layers.Dropout(0.5),
     tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(128, activation='relu'),
-    tf.keras.layers.Dense(1, activation='sigmoid')  # Usar 'softmax' si hay más de 2 clases
+    tf.keras.layers.Dense(100, activation='relu'),
+    tf.keras.layers.Dense(len(mi_clases), activation='softmax')
 ])
 
-# Compilar el modelo
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+modelo.compile(optimizer='adam',
+               loss='categorical_crossentropy',
+               metrics=['accuracy'])
 
-# Entrenar el modelo
-history = model.fit(
-    train_generator,
-    epochs=10,
-    validation_data=(X_val, y_val)
+data_gen_entrenamiento = datagen.flow(X_train, Y_train, batch_size=32)
+
+print("Entrenando modelo...")
+epocas = 60
+history = modelo.fit(
+    data_gen_entrenamiento,
+    epochs=epocas,
+    validation_data=(X_test, Y_test),
+    steps_per_epoch=int(np.ceil(X_train.shape[0] / float(32))),
+    validation_steps=int(np.ceil(X_test.shape[0] / float(32)))
 )
 
-# Ver los resultados
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('Accuracy')
-plt.xlabel('Epochs')
-plt.ylabel('Accuracy')
-plt.legend(['Train', 'Val'])
-plt.show()
+test_loss, test_accuracy = modelo.evaluate(X_test, Y_test)
+print(f"Test accuracy: {test_accuracy * 100:.2f}%")
 
-# Puedes guardar el modelo entrenado
-model.save('mi_modelo_entrenado.h5')
+export_dir = 'faces-model/1/'  
+os.makedirs(export_dir, exist_ok=True)  
+
+tf.saved_model.save(modelo, export_dir)
+
+for root, dirs, files in os.walk('faces.model'):
+    print(root)
+    for file in files:
+        print(f"  - {file}")
+
+print("Verificando estructura del modelo:")
+for root, dirs, files in os.walk(export_dir):
+    print(root)
+    for file in files:
+        print(f"  - {file}")
+
+print("Contenido del directorio exportado:")
+for root, dirs, files in os.walk(export_dir):
+    for file in files:
+        print(os.path.join(root, file))
+
+with open(os.path.join(export_dir, 'class_names.txt'), 'w') as f:
+    for cls in mi_clases:
+        f.write(f"{cls}\n")
+
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
