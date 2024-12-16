@@ -25,3 +25,16 @@ jobs:
     
     - name: Show python version
       run: python --version
+
+    - name: Install gdown to download dataset
+      run: pip install gdown
+
+    - name: Download dataset from Google Drive
+      run: |
+        # Descargar el archivo comprimido desde Google Drive usando el ID del archivo
+        gdown --id 1p-PuVCJJDDl_CCyRIN0WVw-DVSeyRiWB
+        # Extraer el archivo comprimido
+        tar -xzvf caras_fotos.tgz
+
+    - name: Verify files are downloaded
+      run: ls -la # Para verificar que las fotos están correctamente descargadas
