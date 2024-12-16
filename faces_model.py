@@ -14,7 +14,7 @@ def load_and_preprocess_image(file_path, label):
     file_path = tf.cast(file_path, tf.string)
     img = tf.io.read_file(file_path)
     img = tf.image.decode_jpeg(img, channels=3)  
-    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])  
+    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])   
     img = img / 255.0 
     return img, label
 
