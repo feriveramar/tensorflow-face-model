@@ -1,7 +1,7 @@
 name: Train and Deploy Faces Model
 
 on:
-  push:
+  push: 
     branches: [master]
   pull_request:
     branches: [master] 
