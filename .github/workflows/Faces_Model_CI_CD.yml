@@ -38,3 +38,11 @@ jobs:
 
     - name: Verify files are downloaded
       run: ls -la # Para verificar que las fotos están correctamente descargadas
+
+    - name: Execute model training
+      run: |
+        # Ejecutar el script de entrenamiento con las imágenes descargadas
+        python faces_model.py
+    
+    - name: Show model directory
+      run: ls -la faces-model/1/
